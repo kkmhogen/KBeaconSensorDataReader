@@ -4,28 +4,16 @@ import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.Timer;
 import java.util.TimerTask;
-
 import javax.swing.JButton;
-import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
-
-import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
 
-import sensorDataReader.BeaconMqttPushCallback.BeaconObject;
-import sensorDataReader.MqttConnNotify.ConnectionNotify;
 
 public class BeaconPannel extends JPanel implements MqttConnNotify {
 
@@ -35,21 +23,25 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 	private static final long serialVersionUID = 1L;
 
 	private final static String CFG_MQTT_SRV_URL = "MqttSrvUrl";
+	private final static String CFG_MQTT_GW_MAC = "MqttGwMAC";
 	private final static String CFG_MQTT_USR_NAME = "MqttUserName";
 	private final static String CFG_MQTT_USR_PASSWORD = "MqttPassword";
 	private final static String CFG_SENSOR_TYPE= "SensorType";
+	private final static String CFG_SENSOR_MAC= "SensorMAC";
 	private final static String CFG_SENSOR_DIRECTION= "SensorDirection";
 	private final static String CFG_SENSOR_START_POS= "SensorStartPos";
 	private final static String CFG_SENSOR_READ_COUNT= "SensorReadCount";
+	private final static String CFG_SENSOR_SUB_TOPIC= "SensorSubTopic";
+	private final static String CFG_SENSOR_PUB_TOPIC= "SensorPubTopic";
 
 	BeaconMqttClient mMqttClient; // mqtt connection
 
-	private JLabel labelMqttSrv, labelGwID, labelDevList, labelMqttUser, labelMqttPwd;
+	private JLabel labelMqttSrv, labelGwID, labelDevList, labelMqttUser, labelMqttPwd, labelMqttSubTopic, labelMqttPubTopic;
 	private JButton buttonConn, buttonClear, buttonReadHistory;
-	private JTextField textMqttSrv, textGwID, textDevMac, textMqttUser, textMqttPwd, 
+	private JTextField textMqttSrv, textGwID, textDevMac, textMqttUser, textMqttPwd, textMqttPubTopic, textMqttSubTopic, 
 		textSensorType, textDirection, textStartPos, textMaxCount;
 	private JTextArea textLogInfo;
-	private JPanel pannelMqttSrv, pannelGwID, pannelDevList, pannelUser, pannelPwd, pannelLogin, pannelLogInfo, pannelReadHistory;
+	private JPanel pannelMqttSrv, pannelGwID, pannelDevList, pannelUser, pannelPwd, pannelSubTopic, pannelPubTopic, pannelLogin, pannelLogInfo, pannelReadHistory;
 	int mReadSequence = 1;
 	
 	public BeaconPannel() {
@@ -60,12 +52,16 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		this.labelDevList = new JLabel("Beacon MAC");
 		this.labelMqttUser = new JLabel("MQTT Name");
 		this.labelMqttPwd = new JLabel("MQTT password");
+		this.labelMqttSubTopic = new JLabel("MQTT Subscribe Topic");
+		this.labelMqttPubTopic = new JLabel("MQTT Pubaction Topic");
 
 		this.textMqttSrv = new JTextField(30);
 		this.textGwID = new JTextField(30);
 		this.textDevMac = new JTextField(30);
 		this.textMqttUser = new JTextField(10);
 		this.textMqttPwd = new JTextField(10);
+		this.textMqttPubTopic = new JTextField(28);
+		this.textMqttSubTopic = new JTextField(28);
 
 		this.textLogInfo = new JTextArea(18, 56);
 		JScrollPane scroll = new JScrollPane(textLogInfo);
@@ -77,18 +73,24 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		this.setLayout(new GridLayout(2, 1)); // 网格式布局
 		JPanel upper = new JPanel();
 		upper.setLayout(new FlowLayout(FlowLayout.LEFT));
-		upper.setLayout(new GridLayout(7, 1)); // 网格式布局
+		upper.setLayout(new GridLayout(9, 1)); // 网格式布局
 
 		this.pannelMqttSrv = new JPanel();
 		upper.add(pannelMqttSrv);
 		this.pannelGwID = new JPanel();
 		upper.add(pannelGwID);
-		this.pannelDevList = new JPanel();
-		upper.add(pannelDevList);
 		this.pannelUser = new JPanel();
 		upper.add(pannelUser);
 		this.pannelPwd = new JPanel();
 		upper.add(pannelPwd);
+		this.pannelSubTopic = new JPanel();
+		upper.add(pannelSubTopic);
+		this.pannelPubTopic = new JPanel();
+		upper.add(pannelPubTopic);
+		
+		this.pannelDevList = new JPanel();
+		upper.add(pannelDevList);
+		
 		this.pannelLogin = new JPanel();
 		upper.add(pannelLogin);
 		this.pannelReadHistory = new JPanel();
@@ -106,17 +108,9 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 
 		this.pannelGwID.add(this.labelGwID);
 		this.pannelGwID.add(this.textGwID);
-		String strGwList = BeaconConfig.getPropertyValue("GWList", null);
+		String strGwList = BeaconConfig.getPropertyValue(CFG_MQTT_GW_MAC, null);
 		textGwID.setText(strGwList);
 		this.pannelGwID.setLayout(new FlowLayout(FlowLayout.LEFT));
-		
-		this.pannelDevList.add(this.labelDevList);
-		this.pannelDevList.add(this.textDevMac);
-		String strDevList = BeaconConfig.getPropertyValue("DevList", null);
-		if (strDevList != null){
-			textDevMac.setText(strDevList);
-		}
-		this.pannelDevList.setLayout(new FlowLayout(FlowLayout.LEFT));
 
 		this.pannelUser.add(this.labelMqttUser);
 		this.pannelUser.add(this.textMqttUser);
@@ -125,6 +119,26 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		this.pannelPwd.add(this.labelMqttPwd);
 		this.pannelPwd.add(this.textMqttPwd);
 		this.pannelPwd.setLayout(new FlowLayout(FlowLayout.LEFT));
+		
+		this.pannelPwd.add(this.labelMqttPwd);
+		this.pannelPwd.add(this.textMqttPwd);
+		this.pannelPwd.setLayout(new FlowLayout(FlowLayout.LEFT));
+
+		this.pannelSubTopic.add(this.labelMqttSubTopic);
+		this.pannelSubTopic.add(this.textMqttSubTopic);
+		this.pannelSubTopic.setLayout(new FlowLayout(FlowLayout.LEFT));
+		
+		this.pannelPubTopic.add(this.labelMqttPubTopic);
+		this.pannelPubTopic.add(this.textMqttPubTopic);
+		this.pannelPubTopic.setLayout(new FlowLayout(FlowLayout.LEFT));
+		
+		this.pannelDevList.add(this.labelDevList);
+		this.pannelDevList.add(this.textDevMac);
+		String strDevList = BeaconConfig.getPropertyValue(CFG_SENSOR_MAC, null);
+		if (strDevList != null){
+			textDevMac.setText(strDevList);
+		}
+		this.pannelDevList.setLayout(new FlowLayout(FlowLayout.LEFT));
 
 		this.pannelLogin.add(this.buttonConn);
 		this.pannelLogin.setLayout(new FlowLayout(FlowLayout.LEFT));
@@ -150,7 +164,7 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		this.textStartPos.setText(BeaconConfig.getPropertyValue(CFG_SENSOR_START_POS,""));
 		this.pannelReadHistory.add(textStartPos);
 		
-		labelTitle = new JLabel("MaxReadCount");
+		labelTitle = new JLabel("ReadCount");
 		this.pannelReadHistory.add(labelTitle);
 		textMaxCount = new JTextField(6);
 		this.textMaxCount.setText(BeaconConfig.getPropertyValue(CFG_SENSOR_READ_COUNT,""));
@@ -174,6 +188,30 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		String strMqttUserPassword = BeaconConfig.getPropertyValue(
 				CFG_MQTT_USR_PASSWORD, mMqttClient.getPassword());
 		this.textMqttPwd.setText(strMqttUserPassword);
+		
+		String strMqttSubTopic = BeaconConfig.getPropertyValue(
+				CFG_SENSOR_SUB_TOPIC, mMqttClient.getSubTopic());
+		this.textMqttSubTopic.setText(strMqttSubTopic);
+		if (strMqttSubTopic.length() > 0)
+		{
+			this.textMqttSubTopic.setText(strMqttSubTopic);
+		}
+		else
+		{
+			this.textMqttSubTopic.setText("kbeacon/subaction/xxxxx");
+		}
+		
+		String strMqttPubTopic = BeaconConfig.getPropertyValue(
+				CFG_SENSOR_PUB_TOPIC, mMqttClient.getPubTopic());
+		if (strMqttPubTopic.length() > 0)
+		{
+			this.textMqttPubTopic.setText(strMqttPubTopic);
+		}
+		else
+		{
+			this.textMqttPubTopic.setText("kbeacon/pubaction/xxxxx");
+		}
+		
 		addClickListener();
 		
 		appendLog("Mark: \n Sensor Type: 2: humidity 8:Cutoff, 16:PIR, 32:light\n"
@@ -215,6 +253,14 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		String strDirection = textDirection.getText().toString();
 		String strStartPos = textStartPos.getText().toString();
 		String strReadMaxCount = textMaxCount.getText().toString();
+		String strBeaconMacAddr = textDevMac.getText().toString();
+		
+		if (!Utils.isMacAddressValid(strBeaconMacAddr))
+		{
+			appendLog("Invalid device MAC address");
+			return;
+		}
+
 		if (!Utils.isNumber(strSensorType)
 				|| !Utils.isNumber(strDirection)
 				|| !Utils.isNumber(strStartPos)
@@ -239,7 +285,8 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		BeaconConfig.savePropertyValue(CFG_SENSOR_READ_COUNT,strReadMaxCount);
 		BeaconConfig.savePropertyValue(CFG_SENSOR_START_POS,strStartPos);
 		BeaconConfig.savePropertyValue(CFG_SENSOR_DIRECTION,strDirection);
-		
+		BeaconConfig.savePropertyValue(CFG_SENSOR_MAC,strBeaconMacAddr);
+
 		//message
 		byte readHistory[] = new byte[10];
 		int index = 0;
@@ -266,10 +313,9 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		String msgData = Utils.bytesToHex(readHistory, false);
 		msg.put("data", msgData);
 		
-		String strTopic = "kbeacon/subaction/" + textGwID.getText().toString();
-		if (this.mMqttClient.pubCommand2Gateway(strTopic, msg.toString()))
+		if (this.mMqttClient.pubCommand2Gateway(strBeaconMacAddr, msg.toString()))
 		{
-			mHistoryFile = new FileHistory(strSensorType, textDevMac.getText().toString());
+			mHistoryFile = new FileHistory(strSensorType, strBeaconMacAddr.toString());
 			appendLog("start read device history");
 		}
 		else
@@ -367,6 +413,12 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		// TODO Auto-generated method stub
 		if (connNtf == ConnectionNotify.CONN_NTF_CONNECED) {
 			buttonConn.setEnabled(false);
+			textMqttSubTopic.setEnabled(false);
+			textMqttPubTopic.setEnabled(false);
+			textMqttPwd.setEnabled(false);
+			textMqttUser.setEnabled(false);
+			textMqttSrv.setEnabled(false);
+			textGwID.setEnabled(false);
 			buttonReadHistory.setEnabled(true);
 			appendLog("Mqtt connected");
 		} else if (connNtf == ConnectionNotify.CONN_NTF_DISCONNECTED) {
@@ -395,29 +447,33 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		String strGwMac = textGwID.getText();
 		String strMqttUser = textMqttUser.getText();
 		String strMqttPwd = textMqttPwd.getText();
-		String strDevMac = textDevMac.getText();
 		
-		if (!Utils.isMacAddressValid(strDevMac)
-				|| !Utils.isMacAddressValid(strGwMac))
+		if (!Utils.isMacAddressValid(strGwMac))
 		{
 			appendLog("mac address invalid");
 			return;
 		}
+		
+		String strPubTopic = textMqttSubTopic.getText();
+		String strSubTopic = textMqttPubTopic.getText();
+		if (strPubTopic.length() <= 0 || strSubTopic.length() <= 0)
+		{
+			appendLog("Gateway MQTT subscribe or pubaction topic can not be empty");
+			return;
+		}
 
 		if (!mMqttClient.isConnected()) {
-			BeaconConfig.savePropertyValue(CFG_MQTT_USR_PASSWORD,
-					strMqttPwd);
-			BeaconConfig.savePropertyValue(CFG_MQTT_USR_NAME,
-					strMqttUser);
-			BeaconConfig.savePropertyValue(CFG_MQTT_SRV_URL,
-					strMqttSrvAddr);
-			BeaconConfig.savePropertyValue("GWList", strGwMac);
-			BeaconConfig.savePropertyValue("DevList", strDevMac);
+			BeaconConfig.savePropertyValue(CFG_MQTT_USR_PASSWORD,strMqttPwd);
+			BeaconConfig.savePropertyValue(CFG_MQTT_USR_NAME,strMqttUser);
+			BeaconConfig.savePropertyValue(CFG_MQTT_SRV_URL,strMqttSrvAddr);
+			BeaconConfig.savePropertyValue(CFG_MQTT_GW_MAC, strGwMac);
+			BeaconConfig.savePropertyValue(CFG_SENSOR_SUB_TOPIC, strSubTopic);
+			BeaconConfig.savePropertyValue(CFG_SENSOR_PUB_TOPIC, strPubTopic);
 			
-			appendLog("Start connect gateway and monitor device:" + strDevMac);
+			appendLog("Start connect gateway and monitor device:" + strGwMac);
 
-			mMqttClient.setConnectinInfo(strMqttSrvAddr, strGwMac, strDevMac,
-					strMqttUser, strMqttPwd);
+			mMqttClient.setConnectinInfo(strMqttSrvAddr, strGwMac,
+					strMqttUser, strMqttPwd, strPubTopic, strSubTopic);
 			mMqttClient.connect();
 		}
 	}

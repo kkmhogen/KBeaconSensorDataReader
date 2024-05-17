@@ -1,7 +1,6 @@
 package sensorDataReader;
 
 
-import java.util.Date;
 import java.util.HashMap;
 
 import net.sf.json.JSONArray;
@@ -63,7 +62,6 @@ public class BeaconMqttPushCallback implements MqttCallback {
     }
 
     public void messageArrived(String topic, MqttMessage message) throws Exception {
-        // subscribe后得到的消息会执行到这里面  
         handleMqttMsg(topic, new String(message.getPayload()));
     }  
     

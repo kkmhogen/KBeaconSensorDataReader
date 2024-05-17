@@ -1,5 +1,4 @@
 package sensorDataReader;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -17,6 +16,8 @@ public class BeaconMqttClient
     private String mSubscribeGwMac;  
     private  String mUserName = "kkmtest";
     private  String mPassWord = "testpassword";
+    private String mSubTopic = "";
+    private String mPubTopic = "";
         
     private MqttClient mClient;  
     private MqttConnectOptions options;  
@@ -41,14 +42,19 @@ public class BeaconMqttClient
     	return IsConnected;
     }
     
-    public void setConnectinInfo(String strHost, String strGwMac, String strDevMac, String usrPwd, String password)
+    public void setConnectinInfo(String strHost, 
+    		String strGwMac, 
+    		String usrPwd,
+    		String password,
+    		String strPubTopic,
+    		String strSubTopic)
     {
     	mHostAddr = strHost;
     	mSubscribeGwMac = strGwMac;
     	mUserName = usrPwd;
     	mPassWord = password;
-    	mDevMap.put(strDevMac, new DevAdvInfo());
-    	
+    	mSubTopic = strPubTopic;
+    	mPubTopic = strSubTopic;
     	
         try {  
             // host为主机名，clientid即连接MQTT的客户端ID，一般以唯一标识符表示，MemoryPersistence设置clientid的保存形式，默认为以内存保存  
@@ -108,6 +114,16 @@ public class BeaconMqttClient
     	return mPassWord;
     }
     
+    public String getSubTopic()
+    {
+    	return mSubTopic;
+    }
+    
+    public String getPubTopic()
+    {
+    	return mPubTopic;
+    }
+    
     public void setConnected(boolean enable)
     {
     	IsConnected = enable;
@@ -138,7 +154,7 @@ public class BeaconMqttClient
 	        
 	        //订阅消息  
 	        mClient.subscribe("kbeacon/publish/" + mSubscribeGwMac, 0); 
-        	mClient.subscribe("kbeacon/pubaction/" + mSubscribeGwMac, 0); 
+        	mClient.subscribe(mPubTopic, 0); 
         	
 	        mQttNotify.appendLog("subscribe topic to server complete");
 	        
@@ -149,16 +165,17 @@ public class BeaconMqttClient
     }
     
     
-    public synchronized boolean pubCommand2Gateway(String strTopic, String msg) 
+    public synchronized boolean pubCommand2Gateway(String strDevMac, String msg) 
     {   
     	if (IsConnected)
     	{
+        	mDevMap.put(strDevMac, new DevAdvInfo());
 	        MqttMessage message = new MqttMessage(msg.getBytes());  
 	        message.setQos(0);  
 	        message.setRetained(false);  
 	        try
 	        {
-	        	mClient.publish(strTopic, message);  
+	        	mClient.publish(mSubTopic, message);  
 	        	return true;
 	        }
 	        catch(Exception e)
