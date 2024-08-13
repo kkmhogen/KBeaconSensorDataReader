@@ -1,5 +1,6 @@
 package sensorDataReader;
 
+import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.regex.Pattern;
@@ -20,7 +21,31 @@ public class Utils {
 	private static final char[] HEX_ARRAY = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 	
 	
-	
+	public static long bytesTo4Long( byte[] array, int offset )
+    {
+        long nData = (array[offset] & 0xFF);
+        nData = nData << 8;
+        nData += (array[offset + 1] & 0xFF);
+        nData = nData << 8;
+        nData += (array[offset + 2] & 0xFF);
+        nData = nData << 8;
+        nData += (array[offset + 3] & 0xFF);
+
+        return nData;
+    }
+    
+    public static float signedBytes2Float(byte byHeight, byte byLow)
+    {
+        int combine = ((byHeight & 0xFF) << 8) + (byLow & 0xFF);
+        if (combine >= 0x8000)
+        {
+            combine = combine - 0x10000;
+        }
+
+        float fResult = (float)(combine / 256.0);
+        BigDecimal bigTemp = new BigDecimal(fResult);
+        return bigTemp.setScale(2,   BigDecimal.ROUND_HALF_UP).floatValue();
+    }
 	public static String bytesToHex(final byte[] bytes, final int start, final int length, final boolean add0x)
 	{
 		if (bytes == null || bytes.length <= start || length <= 0) {

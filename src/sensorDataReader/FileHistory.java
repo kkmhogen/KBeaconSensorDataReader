@@ -2,7 +2,6 @@ package sensorDataReader;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.math.BigDecimal;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 
@@ -12,68 +11,142 @@ public class FileHistory {
     private final static String MAC_FILE_NAME = "_history_data.csv";
     private String mFilePath;
     public int mReadCount = 0;
+    public long mMinUtcSec = 0;
+    public final static int MIN_UTC_TIME = 1610000000; //2021
     
+    public final static int ERR_UTC_TIME_MIN = -1;
+    public final static int ERR_TEMPERATURE_INVALID = -2;
+    public final static int ERR_MSG_TYPE = -3;
+    public final static int ERR_SENSOR_TYPE = -4;
+    public final static int ERR_MSG_LENGTH = -5;
+    
+
     public FileHistory(String strSensorType, String strMac)
     {
-    	SimpleDateFormat formatter = new SimpleDateFormat("MM_dd_HH_mm");
+    	SimpleDateFormat formatter = new SimpleDateFormat("MM_dd_HH_mm_ss");
 		String fileNamePrefex =formatter.format(new Date(System.currentTimeMillis()));
 		mFilePath = fileNamePrefex + "_" + strMac+"_"+strSensorType + MAC_FILE_NAME;
     }
     
-    public static long bytesTo4Long( byte[] array, int offset )
+    public int parseCO2Record(String strMac, long utcOffset, RandomAccessFile randomFile, int nDataLength, byte[] sensorDataRsp, int index) 
+        	throws IOException
     {
-        long nData = (array[offset] & 0xFF);
-        nData = nData << 8;
-        nData += (array[offset + 1] & 0xFF);
-        nData = nData << 8;
-        nData += (array[offset + 2] & 0xFF);
-        nData = nData << 8;
-        nData += (array[offset + 3] & 0xFF);
-
-        return nData;
-    }
-    
-    public static float signedBytes2Float(byte byHeight, byte byLow)
-    {
-        int combine = ((byHeight & 0xFF) << 8) + (byLow & 0xFF);
-        if (combine >= 0x8000)
-        {
-            combine = combine - 0x10000;
-        }
-
-        float fResult = (float)(combine / 256.0);
-        BigDecimal bigTemp = new BigDecimal(fResult);
-        return bigTemp.setScale(2,   BigDecimal.ROUND_HALF_UP).floatValue();
-    }
-    
-    public int parseHTRecord(RandomAccessFile randomFile, int nDataLength, byte[] sensorDataRsp, int index) 
-    	throws IOException
-    {
-    	if (nDataLength % 8 != 0)
+    	if (nDataLength % 10 != 0)
     	{
-    		return -1;
+    		System.out.println("sensor data length is not aligin with 8byte");
+    		return ERR_MSG_LENGTH;
     	}
-    	int nTotalRecordNum = nDataLength / 8;
+    	int nTotalRecordNum = nDataLength / 10;
 		for (int i = 0; i < nTotalRecordNum; i++)
 		{
-			long utc_time = bytesTo4Long(sensorDataRsp, index);
+			long utc_time = Utils.bytesTo4Long(sensorDataRsp, index);
+			if (utc_time < MIN_UTC_TIME)
+			{
+				utc_time = utc_time + utcOffset;
+			}
 			index += 4;
 			String strForamtTime = mRecordTimeFormat.format(utc_time * 1000);
 			
-			float temperature = signedBytes2Float(sensorDataRsp[index], sensorDataRsp[index+1]);
+		      //co2
+	        int co2 = ((sensorDataRsp[index] & 0xFF) << 8) +  (sensorDataRsp[index+1] & 0xFF);
 			index += 2;
-
-	        float humidity = signedBytes2Float(sensorDataRsp[index], sensorDataRsp[index+1]);
+			
+			//temperature
+			float temperature = Utils.signedBytes2Float(sensorDataRsp[index], sensorDataRsp[index+1]);
+			index += 2;
+			if (temperature < -30 || temperature > 40)
+			{
+				return ERR_TEMPERATURE_INVALID;
+			}
+			
+			//humidity
+	        float humidity = Utils.signedBytes2Float(sensorDataRsp[index], sensorDataRsp[index+1]);
 	        index += 2;
 	        
-	    	randomFile.writeBytes(strForamtTime + "," + utc_time + "," + temperature + "," + humidity + "\r\n");
+	    	randomFile.writeBytes(strMac + "," + strForamtTime + "," + utc_time + 
+	    			"," + temperature + "," + humidity + "," + co2 + "\r\n");
 		}
 		mReadCount += nTotalRecordNum;
 		
 		return nTotalRecordNum;
     }
     
-    public int parseButtonRecord(RandomAccessFile randomFile, int nDataLength, byte[] sensorDataRsp, int index) 
+    public int parseVOCRecord(String strMac, long utcOffset, RandomAccessFile randomFile, int nDataLength, byte[] sensorDataRsp, int index) 
+        	throws IOException
+    {
+    	if (nDataLength % 8 != 0)
+    	{
+    		System.out.println("sensor data length is not aligin with 8byte");
+    		return ERR_MSG_LENGTH;
+    	}
+    	int nTotalRecordNum = nDataLength / 8;
+		for (int i = 0; i < nTotalRecordNum; i++)
+		{
+			long utc_time = Utils.bytesTo4Long(sensorDataRsp, index);
+			if (utc_time < MIN_UTC_TIME)
+			{
+				utc_time = utc_time + utcOffset;
+			}
+			index += 4;
+			String strForamtTime = mRecordTimeFormat.format(utc_time * 1000);
+			mMinUtcSec = utc_time;
+			
+		    //voc
+	        int voc = ((sensorDataRsp[index] & 0xFF) << 8) +  (sensorDataRsp[index+1] & 0xFF);
+			index += 2;
+			
+			//nox
+	        int nox = ((sensorDataRsp[index] & 0xFF) << 8) +  (sensorDataRsp[index+1] & 0xFF);
+			index += 2;
+			
+
+	        
+	    	randomFile.writeBytes(strMac + "," + strForamtTime + "," + utc_time + 
+	    			"," + voc + "," + nox + "\r\n");
+		}
+		mReadCount += nTotalRecordNum;
+		
+		return nTotalRecordNum;
+    }
+    
+    public int parseHTRecord(String strMac, long utcOffset, RandomAccessFile randomFile, int nDataLength, byte[] sensorDataRsp, int index) 
+    	throws IOException
+    {
+    	if (nDataLength % 8 != 0)
+    	{
+    		System.out.println("sensor data length is not aligin with 8byte");
+    		return ERR_MSG_LENGTH;
+    	}
+    	int nTotalRecordNum = nDataLength / 8;
+		for (int i = 0; i < nTotalRecordNum; i++)
+		{
+			long utc_time = Utils.bytesTo4Long(sensorDataRsp, index);
+			if (utc_time < MIN_UTC_TIME)
+			{
+				utc_time = utc_time + utcOffset;
+			}
+			index += 4;
+			String strForamtTime = mRecordTimeFormat.format(utc_time * 1000);
+
+			
+			float temperature = Utils.signedBytes2Float(sensorDataRsp[index], sensorDataRsp[index+1]);
+			index += 2;
+			if (temperature < -30 || temperature > 40)
+			{
+				return ERR_TEMPERATURE_INVALID;
+			}
+
+	        float humidity = Utils.signedBytes2Float(sensorDataRsp[index], sensorDataRsp[index+1]);
+	        index += 2;
+	        
+	    	randomFile.writeBytes(strMac + "," + strForamtTime + "," + utc_time + "," + temperature + "," + humidity + "\r\n");
+		}
+		mReadCount += nTotalRecordNum;
+		
+		return nTotalRecordNum;
+    }
+    
+    public int parseButtonRecord(String strMac, long utcOffset, RandomAccessFile randomFile, int nDataLength, byte[] sensorDataRsp, int index) 
         	throws IOException
     {
     	if (nDataLength % 8 != 0)
@@ -83,21 +156,22 @@ public class FileHistory {
     	int nTotalRecordNum = nDataLength / 8;
 		for (int i = 0; i < nTotalRecordNum; i++)
 		{
-			long utc_time = bytesTo4Long(sensorDataRsp, index);
+			long utc_time = Utils.bytesTo4Long(sensorDataRsp, index);
 			index += 4;
+			
 			String strForamtTime = mRecordTimeFormat.format(utc_time * 1000);
 			
 			byte btn_evt = sensorDataRsp[index];
 			index += 4;
 
-	    	randomFile.writeBytes(strForamtTime + "," + utc_time + "," + btn_evt + "\r\n");
+	    	randomFile.writeBytes(strMac + "," + strForamtTime + "," + utc_time + "," + btn_evt + "\r\n");
 		}
 		mReadCount += nTotalRecordNum;
 		
 		return nTotalRecordNum;
     }
     
-    public int parseSensorData(String strSensorData) 
+    public int parseSensorData(int frm_idx, String strMac, int utcOffset, byte[] sensorDataRsp) 
     {
     	int nTotalRecordNum = 0;
     	try 
@@ -109,14 +183,18 @@ public class FileHistory {
 	    	long fileLength = randomFile.length();
 	    	// 将写文件指针移到文件尾。
 	    	randomFile.seek(fileLength);
+	    	if (frm_idx == 0)
+	    	{
+	    		mMinUtcSec = 0;
+	    	}
 	    	
-	    	byte[] sensorDataRsp = Utils.hexStringToBytes(strSensorData);
 	    	
 	    	//msg type
 	    	int index = 0;
 	    	if (sensorDataRsp[index++] != 0x2)
 	    	{
-	    		return -1;
+	    		System.out.println("msg type is not 0x2");
+	    		return ERR_MSG_TYPE;
 	    	}
 	    	
 	    	//msg length
@@ -124,15 +202,12 @@ public class FileHistory {
 	    	msg_len += (int)(sensorDataRsp[index++] & 0xFF);
 	    	if (sensorDataRsp.length != msg_len + 3)
 	        {
-	            return -2;
+	    		System.out.println("msg length invalid");
+	            return ERR_MSG_LENGTH;
 	        }
 	    	
 	    	//sensor type
 	    	int sensor_type = sensorDataRsp[index++];
-	    	if (sensor_type != 2 && sensor_type != 4)
-	    	{
-	    		return -3;
-	    	}
 	    	
 	    	//next record
 	    	index += 4;
@@ -140,17 +215,25 @@ public class FileHistory {
 	    	int nDataLength = sensorDataRsp.length - index;
 	    	if (sensor_type == 2)
 	    	{
-	    		nTotalRecordNum = parseHTRecord(randomFile, nDataLength, sensorDataRsp, index);
+	    		nTotalRecordNum = parseHTRecord(strMac, utcOffset, randomFile, nDataLength, sensorDataRsp, index);
 	    	}
 	    	else if (sensor_type == 4)
 	    	{
-	    		nTotalRecordNum = parseButtonRecord(randomFile, nDataLength, sensorDataRsp, index);
+	    		nTotalRecordNum = parseButtonRecord(strMac, utcOffset, randomFile, nDataLength, sensorDataRsp, index);
+	    	}
+	    	else if (sensor_type == 65)
+	    	{
+	    		nTotalRecordNum = parseCO2Record(strMac, utcOffset, randomFile, nDataLength, sensorDataRsp, index);
+	    	}
+	    	else if (sensor_type == 64)
+	    	{
+	    		nTotalRecordNum = parseVOCRecord(strMac, utcOffset, randomFile, nDataLength, sensorDataRsp, index);
 	    	}
 	    	
 	    	randomFile.close();
     	} catch (IOException e) {
     		e.printStackTrace();
-    		return -6;
+    		return 0;
     	}
     	
     	return nTotalRecordNum;

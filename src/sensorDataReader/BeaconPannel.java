@@ -334,15 +334,24 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 			return -1;
 		}
 		
+		int sequence = cmdReqAgent.getInt("seq");
 		if (!cmdReqAgent.has("cause"))
 		{
 			appendLog("Error: no cause in message");
 			return -1;
 		}
+		String devMac = cmdReqAgent.getString("mac");		
+		StringBuffer strBuffer = new StringBuffer();
+		
 		int cause = cmdReqAgent.getInt("cause");
 		if (cause != 0 && cause != 1)
 		{
-			appendLog("Error: cause is" + cause);
+			strBuffer.append("read faile, error:" + cause);
+			strBuffer.append(",sequence:");
+			strBuffer.append(sequence);
+			strBuffer.append(", MAC:");
+			strBuffer.append(devMac);
+			appendLog(strBuffer.toString());
 			return -1;
 		}
 		
@@ -352,49 +361,65 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 			return 0;
 		}
 
-		if (!cmdReqAgent.has("utcOffset"))
+		int utcOffset = 0;
+		if (cmdReqAgent.has("utcOffset"))
 		{
-			appendLog("Error no utc offset");
-			return -1;
+			utcOffset = cmdReqAgent.getInt("utcOffset");
 		}
 
 		if (!cmdReqAgent.has("data"))
 		{
-			appendLog("No record data");
+			strBuffer.append("Read failed, no data");
+			strBuffer.append(",sequence:");
+			strBuffer.append(sequence);
+			strBuffer.append(", MAC:");
+			strBuffer.append(devMac);
+			appendLog(strBuffer.toString());
 			return -1;
 		}
 		
 		if (!cmdReqAgent.has("dType") || !cmdReqAgent.getString("dType").equals("hex"))
 		{
-			appendLog("history data not hex");
+			strBuffer.append("Read failed, no hex");
+			strBuffer.append(",sequence:");
+			strBuffer.append(sequence);
+			strBuffer.append(", MAC:");
+			strBuffer.append(devMac);
+			appendLog(strBuffer.toString());
 			return -1;
 		}
 		
-		int index = cmdReqAgent.getInt("idx");
-		int utcOffset = cmdReqAgent.getInt("utcOffset");
-		StringBuffer strBuffer = new StringBuffer();
-		
 		if (cmdReqAgent.has("data"))
 		{
+			int index = cmdReqAgent.getInt("idx");
 			strBuffer.append("Read response, index:");
 			strBuffer.append(index);
 			strBuffer.append(", UTC offset:");
 			strBuffer.append(utcOffset);
 			
-			int record_count = mHistoryFile.parseSensorData(cmdReqAgent.getString("data"));
-			if (record_count > 0)
+			byte[] sensorDataRsp = Utils.hexStringToBytes(cmdReqAgent.getString("data"));
+			if (sensorDataRsp[0] == 0x2)
 			{
-
-				strBuffer.append(", read count:");
-				strBuffer.append(record_count);
-				strBuffer.append(", total count:");
-				strBuffer.append(mHistoryFile.readDataCount());
+				int record_count = mHistoryFile.parseSensorData(index, devMac, utcOffset, sensorDataRsp);
+				if (record_count > 0)
+				{
+	
+					strBuffer.append(", read count:");
+					strBuffer.append(record_count);
+					strBuffer.append(", total count:");
+					strBuffer.append(mHistoryFile.readDataCount());
+				}
+				else
+				{
+					strBuffer.append(",Read failed");
+					strBuffer.append(record_count);
+				}
 			}
 			else
 			{
-				strBuffer.append(",Read failed");
-				strBuffer.append(record_count);
+				appendLog("Receive unknown message type" + sensorDataRsp[0]);
 			}
+
 			appendLog(strBuffer.toString());
 		}
 		
@@ -406,6 +431,7 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		
 		return 0;
 	}
+	
 
 
 	@Override
