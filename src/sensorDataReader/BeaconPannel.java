@@ -108,8 +108,8 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 
 		this.pannelGwID.add(this.labelGwID);
 		this.pannelGwID.add(this.textGwID);
-		String strGwList = BeaconConfig.getPropertyValue(CFG_MQTT_GW_MAC, null);
-		textGwID.setText(strGwList);
+		String strGwMac = BeaconConfig.getPropertyValue(CFG_MQTT_GW_MAC, null);
+		textGwID.setText(strGwMac);
 		this.pannelGwID.setLayout(new FlowLayout(FlowLayout.LEFT));
 
 		this.pannelUser.add(this.labelMqttUser);
@@ -190,26 +190,18 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 		this.textMqttPwd.setText(strMqttUserPassword);
 		
 		String strMqttSubTopic = BeaconConfig.getPropertyValue(
-				CFG_SENSOR_SUB_TOPIC, mMqttClient.getSubTopic());
+				CFG_SENSOR_SUB_TOPIC, "kbeacon/subaction/"+strGwMac);
 		this.textMqttSubTopic.setText(strMqttSubTopic);
 		if (strMqttSubTopic.length() > 0)
 		{
 			this.textMqttSubTopic.setText(strMqttSubTopic);
 		}
-		else
-		{
-			this.textMqttSubTopic.setText("kbeacon/subaction/xxxxx");
-		}
 		
 		String strMqttPubTopic = BeaconConfig.getPropertyValue(
-				CFG_SENSOR_PUB_TOPIC, mMqttClient.getPubTopic());
+				CFG_SENSOR_PUB_TOPIC, "kbeacon/pubaction/"+strGwMac);
 		if (strMqttPubTopic.length() > 0)
 		{
 			this.textMqttPubTopic.setText(strMqttPubTopic);
-		}
-		else
-		{
-			this.textMqttPubTopic.setText("kbeacon/pubaction/xxxxx");
 		}
 		
 		addClickListener();
@@ -480,8 +472,8 @@ public class BeaconPannel extends JPanel implements MqttConnNotify {
 			return;
 		}
 		
-		String strPubTopic = textMqttSubTopic.getText();
-		String strSubTopic = textMqttPubTopic.getText();
+		String strPubTopic = textMqttPubTopic.getText();
+		String strSubTopic = textMqttSubTopic.getText();
 		if (strPubTopic.length() <= 0 || strSubTopic.length() <= 0)
 		{
 			appendLog("Gateway MQTT subscribe or pubaction topic can not be empty");
