@@ -53,8 +53,8 @@ public class BeaconMqttClient
     	mSubscribeGwMac = strGwMac;
     	mUserName = usrPwd;
     	mPassWord = password;
-    	mSubTopic = strPubTopic;
-    	mPubTopic = strSubTopic;
+    	mPubTopic = strPubTopic;
+    	mSubTopic = strSubTopic;
     	
         try {  
             // host为主机名，clientid即连接MQTT的客户端ID，一般以唯一标识符表示，MemoryPersistence设置clientid的保存形式，默认为以内存保存  
